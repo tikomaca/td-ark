@@ -13,9 +13,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 180
-    env:
-      NDK_VERSION: "27.0.12077973"
+    timeout-minutes: 240
     steps:
       - name: Checkout TDLib
         uses: actions/checkout@v4
@@ -33,44 +31,36 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y make git zlib1g-dev libssl-dev gperf php-cli cmake g++ ccache
+          sudo apt-get install -y make git zlib1g-dev libssl-dev gperf php-cli cmake g++ ccache unzip wget perl
 
-      - name: Install NDK + CMake
-        run: |
-          export ANDROID_HOME=/usr/local/lib/android/sdk
-          SDKMANAGER=$(ls -d $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager | sort -V | tail -n 1)
-          echo "Using: $SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses > /dev/null || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-36" "cmake;3.22.1" "ndk;${NDK_VERSION}"
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+      - name: Check environment
+        working-directory: td/example/android
+        run: ./check-environment.sh
 
-      - name: Show script usage (for debugging)
+      - name: Fetch Android SDK
+        working-directory: td/example/android
+        run: ./fetch-sdk.sh
+
+      - name: Build OpenSSL
+        working-directory: td/example/android
+        run: ./build-openssl.sh
+
+      - name: Build TDLib
+        working-directory: td/example/android
+        run: ./build-tdlib.sh '' '' '' '' '' '' '${{ inputs.abis }}'
+
+      - name: Show output
         working-directory: td/example/android
         run: |
-          echo "=== README ==="
-          cat README.md || true
-          echo "=== build-openssl.sh (head) ==="
-          sed -n '1,30p' build-openssl.sh || true
-          echo "=== build-tdlib.sh (head) ==="
-          sed -n '1,30p' build-tdlib.sh || true
-
-      - name: Build TDLib (Java + JNI)
-        working-directory: td/example/android
-        run: |
-          ./check-environment.sh
-          ./fetch-sdk.sh
-          ./build-openssl.sh "$ANDROID_HOME" "$ANDROID_NDK_ROOT" "$ANDROID_HOME/ndk/openssl" 21 ${{ inputs.abis }}
-          ./build-tdlib.sh "$ANDROID_HOME" "$ANDROID_NDK_ROOT" "$ANDROID_HOME/ndk/openssl" 21 ${{ inputs.abis }}
-
-      - name: Collect output
-        run: |
-          mkdir -p out
-          cp -r td/example/android/tdlib/* out/ || true
-          cd td && git rev-parse HEAD > ../out/TDLIB_COMMIT.txt
+          ls -la tdlib
+          ls -R tdlib/libs | head -50
+          ls -R tdlib/java | head -50
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: tdlib-android
-          path: out/
+          path: |
+            td/example/android/tdlib/libs
+            td/example/android/tdlib/java
+            td/example/android/tdlib/tdlib.zip
