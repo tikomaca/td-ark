@@ -14,6 +14,8 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 180
+    env:
+      NDK_VERSION: "27.0.12077973"
     steps:
       - name: Checkout TDLib
         uses: actions/checkout@v4
@@ -33,11 +35,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y make git zlib1g-dev libssl-dev gperf php-cli cmake g++ ccache
 
-      - name: Set up Android SDK + NDK
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK + CMake
         run: |
           yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platform-tools" "platforms;android-36" "cmake;3.22.1" "ndk;27.0.12077973"
-          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+          sdkmanager "platform-tools" "platforms;android-36" "cmake;3.22.1" "ndk;${NDK_VERSION}"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+
+      - name: Show script usage (for debugging)
+        working-directory: td/example/android
+        run: |
+          echo "=== README ==="
+          cat README.md || true
+          echo "=== build-openssl.sh (head) ==="
+          sed -n '1,30p' build-openssl.sh || true
+          echo "=== build-tdlib.sh (head) ==="
+          sed -n '1,30p' build-tdlib.sh || true
 
       - name: Build TDLib (Java + JNI)
         working-directory: td/example/android
